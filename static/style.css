@@ -1,17 +1,93 @@
+/* ---------------------------------------------------------------- themes --
+ * Light is the base palette. Dark is applied either by the OS preference
+ * (unless the user has explicitly chosen light) or by data-theme="dark",
+ * so the in-page toggle can override the system in both directions.
+ */
+
 :root {
+  color-scheme: light;
+
+  --bg: #f4f6f8;
+  --bg-panel: #ffffff;
+  --bg-raised: #eef1f5;
+  --border: #dde2e9;
+  --border-strong: #c3cbd6;
+  --text: #14171c;
+  --text-dim: #626d7d;
+  --accent: #0f9488;
+  --primed: #dc2626;
+  --ready: #15a34a;
+  --danger: #dc2626;
+  --warn: #b45309;
+  --shadow: 0 6px 24px rgba(20, 30, 50, 0.1);
+
+  --sticker-U: #fdfdfd;
+  --sticker-R: #d1332b;
+  --sticker-F: #18a24c;
+  --sticker-D: #f2c60d;
+  --sticker-L: #f0791a;
+  --sticker-B: #1160cc;
+  --sticker-edge: rgba(16, 20, 28, 0.42);
+
+  --mono: "SF Mono", "JetBrains Mono", "Fira Code", ui-monospace, Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --bg: #0d0f13;
+    --bg-panel: #14171d;
+    --bg-raised: #1b1f27;
+    --border: #262b35;
+    --border-strong: #39404d;
+    --text: #e7eaf0;
+    --text-dim: #8b93a3;
+    --accent: #5eead4;
+    --primed: #f2555a;
+    --ready: #4ade80;
+    --danger: #f2555a;
+    --warn: #fbbf24;
+    --shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+
+    --sticker-U: #e9edf3;
+    --sticker-R: #e04a41;
+    --sticker-F: #2fbc63;
+    --sticker-D: #f0cd2c;
+    --sticker-L: #f58a1f;
+    --sticker-B: #3f86f7;
+    --sticker-edge: rgba(0, 0, 0, 0.55);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
   --bg: #0d0f13;
   --bg-panel: #14171d;
   --bg-raised: #1b1f27;
   --border: #262b35;
+  --border-strong: #39404d;
   --text: #e7eaf0;
   --text-dim: #8b93a3;
   --accent: #5eead4;
   --primed: #f2555a;
   --ready: #4ade80;
   --danger: #f2555a;
-  --mono: "SF Mono", "JetBrains Mono", "Fira Code", ui-monospace, Menlo, Consolas, monospace;
-  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+  --warn: #fbbf24;
+  --shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+
+  --sticker-U: #e9edf3;
+  --sticker-R: #e04a41;
+  --sticker-F: #2fbc63;
+  --sticker-D: #f0cd2c;
+  --sticker-L: #f58a1f;
+  --sticker-B: #3f86f7;
+  --sticker-edge: rgba(0, 0, 0, 0.55);
 }
+
+/* ----------------------------------------------------------------- shell -- */
 
 * { box-sizing: border-box; }
 
@@ -30,11 +106,13 @@ body {
   -webkit-user-select: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.2s, color 0.2s;
 }
 
-/* ---------- timer pane ---------- */
+/* ------------------------------------------------------------ timer pane -- */
 
 .timer-pane {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -42,8 +120,9 @@ body {
 
 .scramble-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   padding: 22px 32px;
   border-bottom: 1px solid var(--border);
 }
@@ -58,6 +137,34 @@ body {
   color: var(--text);
   -webkit-user-select: text;
   user-select: text;
+}
+
+.event-select {
+  flex-shrink: 0;
+  padding: 8px 30px 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%23626d7d' stroke-width='1.6'%3E%3Cpath d='M5.5 7.5l4.5 4.5 4.5-4.5'/%3E%3C/svg%3E")
+    no-repeat right 8px center;
+  background-size: 16px;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  cursor: pointer;
+  appearance: none;
+  transition: border-color 0.15s;
+}
+
+.event-select:hover,
+.event-select:focus-visible {
+  border-color: var(--border-strong);
+  outline: none;
+}
+
+.event-select option {
+  background: var(--bg-panel);
+  color: var(--text);
 }
 
 .ghost-btn {
@@ -75,7 +182,15 @@ body {
 
 .ghost-btn:hover {
   color: var(--text);
-  border-color: #39404d;
+  border-color: var(--border-strong);
+}
+
+.icon-btn {
+  width: 36px;
+  padding: 8px 0;
+  font-size: 15px;
+  line-height: 1;
+  text-align: center;
 }
 
 .timer-zone {
@@ -126,7 +241,65 @@ kbd {
   font-size: 11px;
 }
 
-/* ---------- sidebar ---------- */
+/* ------------------------------------------------------- scramble preview -- */
+
+.cube-panel {
+  position: absolute;
+  right: 26px;
+  bottom: 22px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 14px 16px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-panel);
+  box-shadow: var(--shadow);
+  transition: opacity 0.25s;
+}
+
+/* Get out of the way while a solve is in progress. */
+.timer-pane:has(.timer-zone[data-state="running"]) .cube-panel { opacity: 0.15; }
+
+.cube-viewport {
+  /* <twisty-player> lays out its own 3D viewport + scrub bar internally and
+     needs real room for both — a box much shorter than this clips its
+     control row instead of shrinking it, so this isn't just a stylistic
+     choice of proportions. */
+  width: 168px;
+  height: 240px;
+  overflow: hidden;
+}
+
+twisty-player {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.cube-fallback {
+  margin: 0;
+  max-width: 140px;
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.cube-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.13em;
+  color: var(--text-dim);
+}
+
+/* ---------------------------------------------------------------- sidebar -- */
 
 .sidebar {
   display: flex;
@@ -194,7 +367,7 @@ kbd {
 
 .solve-list::-webkit-scrollbar { width: 8px; }
 .solve-list::-webkit-scrollbar-thumb {
-  background: var(--border);
+  background: var(--border-strong);
   border-radius: 4px;
 }
 
@@ -225,7 +398,7 @@ kbd {
 }
 
 .solve-time.dnf { color: var(--danger); text-decoration: line-through; }
-.solve-time.plus2 { color: #fbbf24; }
+.solve-time.plus2 { color: var(--warn); }
 
 .solve-actions {
   display: flex;
@@ -249,7 +422,7 @@ kbd {
   transition: color 0.12s, border-color 0.12s;
 }
 
-.chip:hover { color: var(--text); border-color: #39404d; }
+.chip:hover { color: var(--text); border-color: var(--border-strong); }
 .chip[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
 .chip.delete:hover { color: var(--danger); border-color: var(--danger); }
 
@@ -261,7 +434,7 @@ kbd {
 
 .empty-state[hidden] { display: none; }
 
-/* ---------- toast ---------- */
+/* ------------------------------------------------------------------ toast -- */
 
 .toast {
   position: fixed;
@@ -272,13 +445,14 @@ kbd {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-raised);
+  box-shadow: var(--shadow);
   font-size: 13px;
   color: var(--text);
 }
 
 .toast[hidden] { display: none; }
 
-/* ---------- responsive ---------- */
+/* ------------------------------------------------------------- responsive -- */
 
 @media (max-width: 860px) {
   body {
@@ -287,6 +461,17 @@ kbd {
     overflow: auto;
   }
 
+  .timer-pane { min-height: 62vh; }
+
+  .cube-panel {
+    right: 16px;
+    bottom: 16px;
+    padding: 10px 12px 8px;
+  }
+
+  .cube-viewport { width: 120px; height: 172px; }
+  .cube-caption span { display: none; }
+
   .sidebar {
     border-left: none;
     border-top: 1px solid var(--border);
@@ -294,4 +479,8 @@ kbd {
   }
 
   .solve-actions { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
 }

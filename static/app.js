@@ -1,16 +1,45 @@
 // Cubing Timer — scrambles are generated client-side with cubing.js; the
 // backend only stores results and computes averages.
-
+//
+// The scramble preview is rendered by cubing.js's own <twisty-player>
+// (WebGL, real 3D, drag-to-orbit built in) rather than a hand-rolled
+// renderer — it already knows the exact geometry for every WCA puzzle, so
+// reusing it is both less code and more accurate than reimplementing each
+// puzzle's turning logic from scratch.
 import { randomScrambleForEvent } from "https://cdn.cubing.net/v0/js/cubing/scramble";
+import "https://cdn.cubing.net/v0/js/cubing/twisty";
 
 const API = "/api/solves";
-const SESSION_ID = "default";
 const HOLD_MS = 350; // how long Space must be held before the timer arms
-const EVENT = "333";
+
+// WCA event id -> { label, puzzle for <twisty-player>, fallback scrambler }.
+// `session_id` on a solve doubles as its event id, so history/stats already
+// come back scoped per event with no backend changes.
+const EVENTS = {
+  "222": { label: "2x2x2", puzzle: "2x2x2", fallback: () => fallbackCubeScramble(2, 9) },
+  "333": { label: "3x3x3", puzzle: "3x3x3", fallback: () => fallbackCubeScramble(3, 20) },
+  "333oh": { label: "3x3x3 One-Handed", puzzle: "3x3x3", fallback: () => fallbackCubeScramble(3, 20) },
+  "333bf": { label: "3x3x3 Blindfolded", puzzle: "3x3x3", fallback: () => fallbackCubeScramble(3, 20) },
+  "444": { label: "4x4x4", puzzle: "4x4x4", fallback: () => fallbackCubeScramble(4, 40) },
+  "555": { label: "5x5x5", puzzle: "5x5x5", fallback: () => fallbackCubeScramble(5, 60) },
+  "666": { label: "6x6x6", puzzle: "6x6x6", fallback: () => fallbackCubeScramble(6, 80) },
+  "777": { label: "7x7x7", puzzle: "7x7x7", fallback: () => fallbackCubeScramble(7, 100) },
+  pyram: { label: "Pyraminx", puzzle: "pyraminx", fallback: fallbackPyraminxScramble },
+  skewb: { label: "Skewb", puzzle: "skewb", fallback: fallbackSkewbScramble },
+};
+
+let currentEvent = "333";
 
 const el = {
+  eventSelect: document.getElementById("event-select"),
   scramble: document.getElementById("scramble"),
   newScramble: document.getElementById("new-scramble"),
+  themeToggle: document.getElementById("theme-toggle"),
+  themeIcon: document.getElementById("theme-icon"),
+  cubePanel: document.getElementById("cube-panel"),
+  cubePlayer: document.getElementById("cube-player"),
+  cubeFallback: document.getElementById("cube-fallback"),
+  cubeView: document.getElementById("cube-view"),
   zone: document.getElementById("timer-zone"),
   time: document.getElementById("time"),
   list: document.getElementById("solve-list"),
@@ -47,19 +76,59 @@ function toast(message) {
 }
 
 // ---------------------------------------------------------------- scrambling
+//
+// Last-resort scramblers, used only if the cubing.js CDN module is
+// unreachable. They don't reproduce WCA's exact random-state algorithms, but
+// they're enough to keep practising on while offline.
 
-const MOVES = ["U", "D", "L", "R", "F", "B"];
+const CUBE_FACES = ["U", "D", "L", "R", "F", "B"];
 const SUFFIXES = ["", "'", "2"];
 
-/** Last-resort scramble if the cubing.js CDN module is unreachable. */
-function fallbackScramble(length = 20) {
+/** Random face turns for an NxN cube, using wide moves once N is big enough. */
+function fallbackCubeScramble(n, length) {
   const moves = [];
   let last = "";
   while (moves.length < length) {
-    const face = MOVES[Math.floor(Math.random() * MOVES.length)];
+    const face = CUBE_FACES[Math.floor(Math.random() * CUBE_FACES.length)];
     if (face === last) continue;
     last = face;
-    moves.push(face + SUFFIXES[Math.floor(Math.random() * SUFFIXES.length)]);
+    const suffix = SUFFIXES[Math.floor(Math.random() * SUFFIXES.length)];
+    if (n >= 4 && Math.random() < 0.4) {
+      const depth = 2 + Math.floor(Math.random() * (n - 3)); // 2..n-2
+      moves.push(`${depth > 2 ? depth : ""}${face}w${suffix}`);
+    } else {
+      moves.push(face + suffix);
+    }
+  }
+  return moves.join(" ");
+}
+
+function fallbackPyraminxScramble(length = 11) {
+  const faces = ["U", "L", "R", "B"];
+  const tips = ["u", "l", "r", "b"];
+  const moves = [];
+  let last = "";
+  while (moves.length < length) {
+    const face = faces[Math.floor(Math.random() * faces.length)];
+    if (face === last) continue;
+    last = face;
+    moves.push(face + (Math.random() < 0.5 ? "" : "'"));
+  }
+  for (const tip of tips) {
+    if (Math.random() < 0.5) moves.push(tip + (Math.random() < 0.5 ? "" : "'"));
+  }
+  return moves.join(" ");
+}
+
+function fallbackSkewbScramble(length = 11) {
+  const faces = ["U", "L", "R", "B"];
+  const moves = [];
+  let last = "";
+  while (moves.length < length) {
+    const face = faces[Math.floor(Math.random() * faces.length)];
+    if (face === last) continue;
+    last = face;
+    moves.push(face + (Math.random() < 0.5 ? "" : "'"));
   }
   return moves.join(" ");
 }
@@ -69,11 +138,11 @@ let pendingScramble = null;
 
 async function generateScramble() {
   try {
-    const alg = await randomScrambleForEvent(EVENT);
+    const alg = await randomScrambleForEvent(currentEvent);
     return alg.toString();
   } catch (err) {
     console.warn("cubing.js scramble failed, using fallback", err);
-    return fallbackScramble();
+    return EVENTS[currentEvent].fallback();
   }
 }
 
@@ -84,7 +153,114 @@ async function nextScramble() {
   pendingScramble = null;
   currentScramble = scramble;
   el.scramble.textContent = scramble;
+  drawCube();
 }
+
+// ------------------------------------------------------------------ theme
+
+// localStorage is unavailable in some privacy modes; preferences are a nicety,
+// so fall back silently rather than breaking the timer.
+function readPref(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch (_) {
+    return null;
+  }
+}
+
+function writePref(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (_) { /* ignore */ }
+}
+
+const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)");
+
+/** The theme actually on screen, whether it came from the OS or the toggle. */
+function activeTheme() {
+  return document.documentElement.dataset.theme
+    || (systemPrefersDark.matches ? "dark" : "light");
+}
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  writePref("theme", theme);
+  syncThemeButton();
+}
+
+function syncThemeButton() {
+  const dark = activeTheme() === "dark";
+  el.themeIcon.textContent = dark ? "☀" : "☾";
+  el.themeToggle.title = dark ? "Switch to light mode" : "Switch to dark mode";
+}
+
+el.themeToggle.addEventListener("click", () => {
+  applyTheme(activeTheme() === "dark" ? "light" : "dark");
+  el.themeToggle.blur(); // so Space primes the timer instead of re-clicking
+});
+
+// Follow the OS while the user has not made an explicit choice.
+systemPrefersDark.addEventListener("change", () => {
+  if (!document.documentElement.dataset.theme) syncThemeButton();
+});
+
+// ----------------------------------------------------------- cube preview
+
+let visualization = readPref("cubeVisualization") === "2D" ? "2D" : "PG3D";
+
+// If the twisty module itself never finishes loading (offline on first
+// visit), the custom element stays an inert, empty tag forever — fall back
+// to a text notice instead of a blank corner.
+customElements.whenDefined("twisty-player").then(
+  () => { el.cubeFallback.hidden = true; },
+);
+setTimeout(() => {
+  if (!customElements.get("twisty-player")) {
+    el.cubePlayer.hidden = true;
+    el.cubeFallback.hidden = false;
+  }
+}, 6000);
+
+// TwistyPlayer's `.puzzle` is write-only (reading it throws), so track what
+// we last set ourselves instead of asking the element.
+let lastPuzzle = null;
+
+/** Push the current event + scramble into the <twisty-player>. */
+function drawCube() {
+  const player = el.cubePlayer;
+  player.visualization = visualization;
+  const puzzle = EVENTS[currentEvent].puzzle;
+  if (puzzle !== lastPuzzle) {
+    player.puzzle = puzzle;
+    lastPuzzle = puzzle;
+  }
+  player.alg = "";
+  player.experimentalSetupAlg = currentScramble;
+}
+
+el.cubeView.addEventListener("click", () => {
+  visualization = visualization === "2D" ? "PG3D" : "2D";
+  writePref("cubeVisualization", visualization);
+  el.cubeView.textContent = visualization === "2D" ? "3D" : "2D";
+  drawCube();
+  el.cubeView.blur();
+});
+el.cubeView.textContent = visualization === "2D" ? "3D" : "2D";
+
+// ----------------------------------------------------------------- events
+
+const savedEvent = readPref("event");
+if (savedEvent && EVENTS[savedEvent]) currentEvent = savedEvent;
+el.eventSelect.value = currentEvent;
+
+el.eventSelect.addEventListener("change", () => {
+  currentEvent = el.eventSelect.value;
+  writePref("event", currentEvent);
+  pendingScramble = null;
+  nextScramble();
+  refresh();
+  el.eventSelect.blur(); // so Space primes the timer instead of reopening the list
+});
 
 // -------------------------------------------------------------------- timer
 
@@ -149,7 +325,7 @@ function releaseLock() {
 
 // Keyboard
 document.addEventListener("keydown", (event) => {
-  if (event.target instanceof HTMLInputElement) return;
+  if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return;
 
   if (state === State.RUNNING) {
     event.preventDefault();
@@ -215,7 +391,7 @@ async function saveSolve(timeMs, scramble) {
         time_ms: timeMs,
         scramble,
         penalty: "none",
-        session_id: SESSION_ID,
+        session_id: currentEvent,
       }),
     });
     await refresh();
@@ -313,7 +489,7 @@ function render({ solves, stats }) {
 
 async function refresh() {
   try {
-    render(await request(`${API}?session_id=${encodeURIComponent(SESSION_ID)}`));
+    render(await request(`${API}?session_id=${encodeURIComponent(currentEvent)}`));
   } catch (err) {
     console.error(err);
     toast("Could not load solve history.");
@@ -325,8 +501,10 @@ async function refresh() {
 el.newScramble.addEventListener("click", () => {
   pendingScramble = null;
   nextScramble();
+  el.newScramble.blur();
 });
 
+syncThemeButton();
 setState(State.IDLE);
 nextScramble();
 refresh();

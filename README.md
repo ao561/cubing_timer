@@ -1,15 +1,19 @@
 # Cubing Timer
 
-A minimal speedsolving timer: FastAPI + SQLite backend, vanilla JS frontend.
-WCA-compliant 3x3 scrambles are generated **client-side** with
-[cubing.js](https://js.cubing.net/cubing/) loaded from a CDN, so the server only
-stores solves and computes averages.
+A minimal speedsolving timer: FastAPI + SQLite backend, vanilla JS frontend,
+light and dark themes, ten WCA events with a real 3D scramble preview.
+WCA-compliant scrambles are generated **client-side** with
+[cubing.js](https://js.cubing.net/cubing/) loaded from a CDN, so the server
+only stores solves and computes averages.
 
 ## Requirements
 
 - Python 3.10+
-- An internet connection on first page load (for the cubing.js CDN module). If
-  the CDN is unreachable the frontend falls back to a simple random scramble.
+- An internet connection on first page load (for the cubing.js CDN modules).
+  If the scramble module is unreachable, the frontend falls back to a simple
+  random scramble; if the 3D-rendering module is unreachable, the preview
+  panel shows a text notice instead (the timer itself keeps working either
+  way).
 
 ## Install
 
@@ -43,12 +47,38 @@ first start.
 Stopping the timer automatically POSTs the solve and pulls a fresh scramble.
 Hover a solve in the sidebar to mark it `OK` / `+2` / `DNF` or delete it.
 
+### Events
+
+The dropdown in the top bar picks the WCA event: 2x2x2 through 7x7x7,
+3x3x3 One-Handed, 3x3x3 Blindfolded, Pyraminx, and Skewb. Switching events
+fetches a scramble for that event and swaps the history/stats sidebar to that
+event's own solves — under the hood, a solve's `session_id` doubles as its
+event id, so this reuses the existing per-session filtering with no schema
+changes. Your last-picked event is remembered in `localStorage`.
+
+### Scramble preview
+
+The panel in the bottom-right corner is a real 3D, WebGL rendering of the
+scrambled puzzle — drag it to orbit. It's rendered by cubing.js's own
+[`<twisty-player>`](https://js.cubing.net/cubing/twisty/) component rather
+than a hand-rolled renderer, so every event gets the exact geometry WCA
+competitions use (cube, tetrahedron, or corner-turning cube) with no
+per-puzzle code of our own. The button in its caption switches to a flat 2D
+net showing every face at once, which some solvers find easier to read a
+scramble from.
+
+### Theme
+
+The sun/moon button in the top bar switches between light and dark. With no
+choice stored the page follows your OS `prefers-color-scheme`; once you pick one
+it is remembered in `localStorage` and overrides the system in both directions.
+
 ## API
 
 | Method | Path | Description |
 | --- | --- | --- |
 | `POST` | `/api/solves` | Save a solve. Body: `{time_ms, scramble, penalty, session_id}` |
-| `GET` | `/api/solves` | History (newest first) plus stats. Query: `session_id`, `limit` |
+| `GET` | `/api/solves` | History (newest first) plus stats. Query: `session_id`, `limit` — the frontend passes the current event id as `session_id` |
 | `PATCH` | `/api/solves/{id}` | Set penalty. Body: `{"penalty": "none" \| "+2" \| "DNF"}` |
 | `DELETE` | `/api/solves/{id}` | Delete a solve |
 
@@ -100,8 +130,8 @@ cubing_timer/
 │   └── stats.py      # Ao5 / Ao12 calculations
 ├── static/
 │   ├── index.html
-│   ├── app.js        # timer state machine, cubing.js scrambles, API calls
-│   └── style.css
+│   ├── app.js        # timer state machine, events, cubing.js scrambles, theme, API calls
+│   └── style.css     # <twisty-player> is cubing.js's own custom element
 ├── requirements.txt
 └── README.md
 ```
